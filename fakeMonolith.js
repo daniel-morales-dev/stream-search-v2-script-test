@@ -1,9 +1,11 @@
+import * as dotenv from "dotenv";
+dotenv.config();
+
 import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
 import { faker } from "@faker-js/faker";
 import { ulid } from "ulid";
 
-const TOPIC_ARN =
-  "arn:aws:sns:us-east-1:147515533111:notify-create-invoice-demo-topic";
+const TOPIC_ARN = process.env.SNS_TOPIC_ARN;
 const PUBLISH_INTERVAL = 1000;
 
 console.log("AWS_ACCESS_KEY_ID:", process.env.AWS_ACCESS_KEY_ID);
