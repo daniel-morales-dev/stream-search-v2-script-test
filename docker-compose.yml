@@ -1,0 +1,16 @@
+services:
+  localstack:
+    container_name: localstack
+    image: localstack/localstack:latest
+    ports:
+      - "4566:4566"
+      - "4510-4559:4510-4559"
+    environment:
+      - SERVICES=sns,sqs,sts,cloudformation,lambda,logs,iam
+      - DEFAULT_REGION=us-east-1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - LAMBDA_EXECUTOR=docker
+
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
