@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "events": "node --loader ts-node/esm eventsScript.ts"
   },
   "keywords": [],
   "author": "",
@@ -14,11 +15,11 @@
     "@aws-sdk/client-sqs": "^3.689.0",
     "aws-sdk": "^2.1692.0",
     "dotenv": "^16.4.5",
-    "ts-node": "^10.9.2",
     "ulid": "^2.3.0"
   },
   "type": "module",
   "devDependencies": {
-    "@faker-js/faker": "^9.2.0"
+    "@faker-js/faker": "^9.2.0",
+    "ts-node": "^10.9.2"
   }
 }

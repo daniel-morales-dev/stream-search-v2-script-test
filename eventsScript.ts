@@ -4,6 +4,7 @@ dotenv.config();
 import { PublishCommand, SNSClient } from '@aws-sdk/client-sns';
 import { faker } from '@faker-js/faker';
 import { ulid } from 'ulid';
+import { performance } from 'perf_hooks';
 
 // Configuración de AWS SDK
 const sns = new SNSClient({
@@ -29,6 +30,16 @@ interface Event {
     timestamp: string;
     data: Record<string, any>;
   };
+}
+
+interface LoadTestMetrics {
+  totalEvents: number;
+  successfulEvents: number;
+  failedEvents: number;
+  avgLatency: number;
+  maxLatency: number;
+  minLatency: number;
+  errorDetails: string[];
 }
 
 // Generador de eventos aleatorios
@@ -70,20 +81,32 @@ const publishEvent = async (topicArn: string, event: Event): Promise<void> => {
     console.log(`✓ Event published: ${event.id}(${event.type})`);
   } catch (error) {
     console.error(`✗ Failed to publish event ${event.id}:`, error);
+    throw error;
   }
 };
 
 // Función para esperar un tiempo específico
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Simulador principal
-async function runSimulator(config: SimulatorConfig) {
+// Simulador mejorado con métricas de rendimiento
+async function runEnhancedSimulator(config: SimulatorConfig): Promise<LoadTestMetrics> {
+  const metrics: LoadTestMetrics = {
+    totalEvents: 0,
+    successfulEvents: 0,
+    failedEvents: 0,
+    avgLatency: 0,
+    maxLatency: 0,
+    minLatency: Infinity,
+    errorDetails: []
+  };
+
+  const latencies: number[] = [];
+
   const startTime = Date.now();
   const endTime = startTime + (config.duration * 1000);
-  let eventsSent = 0;
 
   console.log(`
-🚀 Starting event simulator
+🚀 Starting enhanced event simulator
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 * Topic ARN: ${config.topicArn}
 * Events/sec: ${config.eventsPerSecond}
@@ -92,14 +115,33 @@ async function runSimulator(config: SimulatorConfig) {
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
   `);
 
+  const publishEventWithMetrics = async (topicArn: string, event: Event) => {
+    const start = performance.now();
+
+    try {
+      await publishEvent(topicArn, event);
+      const latency = performance.now() - start;
+
+      metrics.successfulEvents++;
+      latencies.push(latency);
+      metrics.maxLatency = Math.max(metrics.maxLatency || 0, latency);
+      metrics.minLatency = Math.min(metrics.minLatency, latency);
+    } catch (error) {
+      metrics.failedEvents++;
+      metrics.errorDetails.push(String(error));
+    }
+  };
+
   const sendBatch = async () => {
     while (Date.now() < endTime) {
       const batchPromises = Array(config.parallel)
         .fill(null)
-        .map(() => publishEvent(config.topicArn, generateRandomEvent()));
+        .map(() => {
+          metrics.totalEvents++;
+          return publishEventWithMetrics(config.topicArn, generateRandomEvent());
+        });
 
       await Promise.all(batchPromises);
-      eventsSent += config.parallel;
 
       // Esperar para mantener la tasa de eventos por segundo
       await sleep(1000 / (config.eventsPerSecond / config.parallel));
@@ -108,14 +150,25 @@ async function runSimulator(config: SimulatorConfig) {
 
   await sendBatch();
 
+  // Calcular métricas finales
+  metrics.avgLatency =
+    latencies.reduce((sum, lat) => sum + lat, 0) / latencies.length;
+
   console.log(`
 📊 Simulation completed
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-* Total events sent: ${eventsSent}
+* Total events: ${metrics.totalEvents}
+* Successful events: ${metrics.successfulEvents}
+* Failed events: ${metrics.failedEvents}
+* Avg latency: ${metrics.avgLatency.toFixed(2)}ms
+* Max latency: ${metrics.maxLatency.toFixed(2)}ms
+* Min latency: ${metrics.minLatency.toFixed(2)}ms
 * Actual duration: ${((Date.now() - startTime) / 1000).toFixed(2)}s
-* Avg events/sec: ${(eventsSent / config.duration).toFixed(2)}
+* Avg events/sec: ${(metrics.successfulEvents / config.duration).toFixed(2)}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
   `);
+
+  return metrics;
 }
 
 // Script principal
@@ -131,7 +184,12 @@ async function main() {
     throw new Error('SNS_TOPIC_ARN environment variable is required');
   }
 
-  await runSimulator(config);
+  const metrics = await runEnhancedSimulator(config);
+
+  // Opcional: Guardar métricas o realizar acciones adicionales
+  if (metrics.failedEvents > 0) {
+    console.error('Errores detectados:', metrics.errorDetails);
+  }
 }
 
 // Ejecutar el script
