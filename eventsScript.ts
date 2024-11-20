@@ -22,14 +22,11 @@ interface SimulatorConfig {
 
 interface Event {
   id: string;
-  type: (typeof eventTypes)[number];
-  payload: {
-    companyId: string;
-    resourceType: EResourceType;
-    userId: string;
-    timestamp: string;
-    data: Record<string, any>;
-  };
+  companyId: string;
+  resourceType: EResourceType;
+  userId: string;
+  timestamp: string;
+  data: Record<string, any>;
 }
 
 interface LoadTestMetrics {
@@ -74,19 +71,16 @@ const generateRandomEvent = (): Event => {
 
   return {
     id: ulid(),
-    type,
-    payload: {
-      companyId: companies[Math.floor(Math.random() * companies.length)],
-      userId: ulid(),
-      timestamp: new Date().toISOString(),
-      resourceType:
-        resourceTypes[Math.floor(Math.random() * resourceTypes.length)],
-      data: {
-        name: faker.person.fullName(),
-        email: faker.internet.email(),
-        address: faker.location.streetAddress(),
-        company: faker.company.name(),
-      },
+    companyId: companies[Math.floor(Math.random() * companies.length)],
+    userId: ulid(),
+    timestamp: new Date().toISOString(),
+    resourceType:
+      resourceTypes[Math.floor(Math.random() * resourceTypes.length)],
+    data: {
+      name: faker.person.fullName(),
+      email: faker.internet.email(),
+      address: faker.location.streetAddress(),
+      company: faker.company.name(),
     },
   };
 };
@@ -97,17 +91,11 @@ const publishEvent = async (topicArn: string, event: Event): Promise<void> => {
     const command = new PublishCommand({
       TopicArn: topicArn,
       Message: JSON.stringify(event),
-      MessageAttributes: {
-        eventType: {
-          DataType: "String",
-          StringValue: event.type,
-        },
-      },
     });
 
     await sns.send(command);
 
-    console.log(`✓ Event published: ${event.id}(${event.type})`);
+    console.log(`✓ Event published: ${event.id}(${event.resourceType})`);
   } catch (error) {
     console.error(`✗ Failed to publish event ${event.id}:`, error);
     throw error;
