@@ -50,7 +50,6 @@ export enum EResourceType {
   CREDIT_NOTES = "creditNotes",
   DEBIT_NOTES = "debitNotes", // Income
   ACCOUNTS = "accounts",
-  ALL = "all",
 }
 
 const resourceTypes = Object.values(EResourceType);
