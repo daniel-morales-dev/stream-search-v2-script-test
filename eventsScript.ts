@@ -1,18 +1,16 @@
-import * as dotenv from 'dotenv';
+import * as dotenv from "dotenv";
 dotenv.config();
+import { PublishCommand, SNSClient } from "@aws-sdk/client-sns";
+import { faker } from "@faker-js/faker";
+import { ulid } from "ulid";
+import { performance } from "perf_hooks";
 
-import { PublishCommand, SNSClient } from '@aws-sdk/client-sns';
-import { faker } from '@faker-js/faker';
-import { ulid } from 'ulid';
-import { performance } from 'perf_hooks';
-
-// Configuración de AWS SDK
 const sns = new SNSClient({
-  region: 'us-east-1',
+  region: "us-east-1",
 });
 
 // Tipos de eventos que podemos generar
-const eventTypes = ['CREATE', 'UPDATE', 'DELETE'] as const;
+const eventTypes = ["CREATE", "UPDATE", "DELETE"] as const;
 
 // Interfaces
 interface SimulatorConfig {
@@ -24,8 +22,10 @@ interface SimulatorConfig {
 
 interface Event {
   id: string;
-  type: typeof eventTypes[number];
+  type: (typeof eventTypes)[number];
   payload: {
+    companyId: string;
+    resourceType: EResourceType;
     userId: string;
     timestamp: string;
     data: Record<string, any>;
@@ -42,6 +42,32 @@ interface LoadTestMetrics {
   errorDetails: string[];
 }
 
+export enum EResourceType {
+  INVOICES = "invoices",
+  BILLS = "bills",
+  CLIENTS = "clients",
+  ESTIMATES = "estimates",
+  ITEMS = "items",
+  REMISSIONS = "remissions",
+  PAYMENTS = "payments",
+  CREDIT_NOTES = "creditNotes",
+  DEBIT_NOTES = "debitNotes", // Income
+  ACCOUNTS = "accounts",
+  ALL = "all",
+}
+
+const resourceTypes = Object.values(EResourceType);
+
+const companies = [
+  "01JD51HXTTA1GMNN422DVK6483",
+  "01JD51J4ZE8H1Z6N6764BBZZ34",
+  "01JD51J9N66M4X8PG6VV68HFD2",
+  "01JD51JD1S0BXQF0XBAKXT02ZR",
+  "01JD51JKJGVBR7Z29ZTNXVHTRE",
+  "01JD51JR5SREPS9V28KJ6F2CZ9",
+  "01JD51JW5XGRJQAXE78Z4M0HVA",
+];
+
 // Generador de eventos aleatorios
 const generateRandomEvent = (): Event => {
   const type = eventTypes[Math.floor(Math.random() * eventTypes.length)];
@@ -50,15 +76,18 @@ const generateRandomEvent = (): Event => {
     id: ulid(),
     type,
     payload: {
+      companyId: companies[Math.floor(Math.random() * companies.length)],
       userId: ulid(),
       timestamp: new Date().toISOString(),
+      resourceType:
+        resourceTypes[Math.floor(Math.random() * resourceTypes.length)],
       data: {
         name: faker.person.fullName(),
         email: faker.internet.email(),
         address: faker.location.streetAddress(),
         company: faker.company.name(),
-      }
-    }
+      },
+    },
   };
 };
 
@@ -70,10 +99,10 @@ const publishEvent = async (topicArn: string, event: Event): Promise<void> => {
       Message: JSON.stringify(event),
       MessageAttributes: {
         eventType: {
-          DataType: 'String',
-          StringValue: event.type
-        }
-      }
+          DataType: "String",
+          StringValue: event.type,
+        },
+      },
     });
 
     await sns.send(command);
@@ -86,10 +115,12 @@ const publishEvent = async (topicArn: string, event: Event): Promise<void> => {
 };
 
 // Función para esperar un tiempo específico
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // Simulador mejorado con métricas de rendimiento
-async function runEnhancedSimulator(config: SimulatorConfig): Promise<LoadTestMetrics> {
+async function runEnhancedSimulator(
+  config: SimulatorConfig
+): Promise<LoadTestMetrics> {
   const metrics: LoadTestMetrics = {
     totalEvents: 0,
     successfulEvents: 0,
@@ -97,13 +128,13 @@ async function runEnhancedSimulator(config: SimulatorConfig): Promise<LoadTestMe
     avgLatency: 0,
     maxLatency: 0,
     minLatency: Infinity,
-    errorDetails: []
+    errorDetails: [],
   };
 
   const latencies: number[] = [];
 
   const startTime = Date.now();
-  const endTime = startTime + (config.duration * 1000);
+  const endTime = startTime + config.duration * 1000;
 
   console.log(`
 🚀 Starting enhanced event simulator
@@ -138,7 +169,10 @@ async function runEnhancedSimulator(config: SimulatorConfig): Promise<LoadTestMe
         .fill(null)
         .map(() => {
           metrics.totalEvents++;
-          return publishEventWithMetrics(config.topicArn, generateRandomEvent());
+          return publishEventWithMetrics(
+            config.topicArn,
+            generateRandomEvent()
+          );
         });
 
       await Promise.all(batchPromises);
@@ -171,24 +205,22 @@ async function runEnhancedSimulator(config: SimulatorConfig): Promise<LoadTestMe
   return metrics;
 }
 
-// Script principal
 async function main() {
   const config: SimulatorConfig = {
     topicArn: process.env.SNS_TOPIC_ARN!,
-    eventsPerSecond: parseInt(process.env.EVENTS_PER_SECOND || '10'),
-    duration: parseInt(process.env.DURATION_SECONDS || '60'),
-    parallel: parseInt(process.env.PARALLEL_EXECUTIONS || '5')
+    eventsPerSecond: parseInt(process.env.EVENTS_PER_SECOND || "10"),
+    duration: parseInt(process.env.DURATION_SECONDS || "60"),
+    parallel: parseInt(process.env.PARALLEL_EXECUTIONS || "5"),
   };
 
   if (!config.topicArn) {
-    throw new Error('SNS_TOPIC_ARN environment variable is required');
+    throw new Error("SNS_TOPIC_ARN environment variable is required");
   }
 
   const metrics = await runEnhancedSimulator(config);
 
-  // Opcional: Guardar métricas o realizar acciones adicionales
   if (metrics.failedEvents > 0) {
-    console.error('Errores detectados:', metrics.errorDetails);
+    console.error("Errores detectados:", metrics.errorDetails);
   }
 }
 
