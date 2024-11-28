@@ -66,8 +66,6 @@ const companies = [
 
 // Generador de eventos aleatorios
 const generateRandomEvent = (): Event => {
-  const type = eventTypes[Math.floor(Math.random() * eventTypes.length)];
-
   return {
     id: ulid(),
     companyId: companies[Math.floor(Math.random() * companies.length)],
@@ -87,15 +85,25 @@ const generateRandomEvent = (): Event => {
 // Función para publicar un evento en SNS
 const publishEvent = async (topicArn: string, event: Event): Promise<void> => {
   try {
+    const typeEvent = eventTypes[Math.floor(Math.random() * eventTypes.length)];
+
     const command = new PublishCommand({
       TopicArn: topicArn,
       Message: JSON.stringify(event),
+      Subject: `${typeEvent}_${event?.resourceType}`,
     });
 
     await sns.send(command);
-
+    if (!event) {
+      console.log(`✓ Event Tombstone published`);
+      return;
+    }
     console.log(`✓ Event published: ${event.id}(${event.resourceType})`);
   } catch (error) {
+    if (!event) {
+      console.log(`✗ Failed to publish event Tombstone`);
+      throw error;
+    }
     console.error(`✗ Failed to publish event ${event.id}:`, error);
     throw error;
   }
